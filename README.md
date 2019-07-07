@@ -1,7 +1,7 @@
 # WebRTCExample
 
 This simple example only supports video streaming on the same network.
-For more complex applications you might need to use a `STUN` or `TURN` server
+For more complex applications you might need to use a `STUN` and `TURN` server
 
 
 
