@@ -1,0 +1,123 @@
+<html>
+<head>
+	<title> WebRTC Example </title>
+	<script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+
+	<button id="server">Server</button>
+	<button id="receiver">Reciever</button>
+
+	<video id="videoStream"></video>
+
+<script>
+	var socket = io();
+	var videoStream = null;	
+	var videoElement = document.getElementById('videoStream');
+	var serverBtn = document.getElementById('server');
+	var receiverBtn = document.getElementById('receiver');
+
+
+	var peerConnection = new RTCPeerConnection();
+
+
+	async function beAServer(){
+
+		const offerOptions = {
+		
+				OfferToReceiveVideo: true,
+				offerToReceiveAudio: true
+		}
+
+		// get user media
+		navigator.mediaDevices.getUserMedia({video: true, audio: true})
+			.then((stream)=>{
+				// set the video stream in the global variable
+				videoStream = stream;
+			})
+			.then(()=>{
+
+				// get the tracks and add it to 
+				// the peerConnection for sending to other peer
+				videoStream.getTracks().forEach((track)=>{
+					peerConnection.addTrack(track, videoStream);
+				})
+			})
+			.then(async function(){
+				
+				const offer = await peerConnection.createOffer(offerOptions)
+				await peerConnection.setLocalDescription(offer);
+				socket.emit('sendOffer', JSON.stringify(peerConnection.localDescription));
+			});
+			
+			socket.on('answer', async function(answer){
+
+				answer = JSON.parse(answer);
+				await peerConnection.setRemoteDescription(answer);
+				
+			});
+			
+
+
+			socket.on('iceCandidate', async function(candidate){
+				var iceCandidate = new RTCIceCandidate(JSON.parse(candidate));
+				peerConnection.addIceCandidate(iceCandidate);
+			}) 
+		
+
+	}
+
+	peerConnection.addEventListener('icecandidate', function(candidate){
+		if(candidate.candidate){
+			socket.emit('iceCandidate', JSON.stringify(candidate.candidate));
+		}
+	})
+
+	socket.on('iceCandidate', async function(candidate){
+		var iceCandidate = new RTCIceCandidate(JSON.parse(candidate));
+		peerConnection.addIceCandidate(iceCandidate);
+
+	})
+
+
+	async function beAReciever(){
+	
+		socket.on('offer', async function(offer){
+			offer = JSON.parse(offer);
+			await peerConnection.setRemoteDescription(offer);
+			const answer = await peerConnection.createAnswer();
+			await peerConnection.setLocalDescription(answer);
+			socket.emit('sendAnswer', JSON.stringify(answer));
+
+		})
+
+
+		peerConnection.addEventListener('track', function(event){
+			console.log(event);
+			if(videoElement.srcObject != event.streams[0]){
+				videoElement.srcObject = event.streams[0];
+				videoElement.play();
+			}
+		})
+
+	
+
+
+	
+	}
+
+	serverBtn.addEventListener('click', beAServer);
+	receiverBtn.addEventListener('click', beAReciever);
+	
+
+</script>
+
+
+
+
+
+
+
+</body>
+</html>
